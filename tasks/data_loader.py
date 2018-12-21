@@ -1,4 +1,4 @@
-from typing import Iterator, Tuple
+from typing import Iterator, List, Tuple
 import torch
 from torch import Tensor
 
@@ -12,6 +12,7 @@ class InMemoryDataLoader:
         order_by_class: bool = False,
         shuffle: bool = True,
         shuffle_classes: bool = False,
+        classes: List[int] = None,
     ) -> None:
         data, target = dataset
         if target.dtype != torch.long:
@@ -22,28 +23,38 @@ class InMemoryDataLoader:
         self._ordered_by_class = bool(order_by_class)
         self._allow_mixed_batches = bool(allow_mixed_batches)
 
+        self._nclasses = target.max().item() + 1
+
+        if classes is not None:
+            selected_idx = torch.zeros(
+                len(target), dtype=torch.uint8, device=target.device
+            )
+            for class_label in classes:
+                selected_idx |= target == class_label
+            data = data[selected_idx]
+            target = target[selected_idx]
+
         self._nexamples = len(data)
 
         self._class_ends = []  # type: List[int]
         if order_by_class:
-            nclasses = target.max().long().item() + 1
-            new_data = torch.empty_like(data)
-            new_target = torch.empty_like(target)
+            new_idxs = torch.empty_like(target)
 
             if shuffle_classes:
-                classes = torch.randperm(nclasses, device=target.device)
+                classes = torch.randperm(self._nclasses, device=target.device)
             else:
-                classes = range(nclasses)
+                classes = range(self._nclasses)
 
             start = 0
             for class_label in classes:
-                idxs = (target == class_label).nonzero().squeeze_(1)
-                end = start + len(idxs)
-                new_data[start:end] = data[idxs]
-                new_target[start:end] = target[idxs]
-                self._class_ends.append(end)
-                start = end
-            data, target = new_data, new_target
+                idxs = (target == class_label).nonzero()
+                if idxs.nelement() > 0:
+                    idxs.squeeze_(1)
+                    end = start + len(idxs)
+                    new_idxs[start:end] = idxs
+                    self._class_ends.append(end)
+                    start = end
+            data, target = data[new_idxs], target[new_idxs]
 
         self.data = data
         self.target = target
@@ -54,6 +65,10 @@ class InMemoryDataLoader:
 
     def __len__(self) -> int:
         return self._nexamples
+
+    @property
+    def nclasses(self) -> int:
+        return self._nclasses
 
     @property
     def shuffle(self) -> bool:

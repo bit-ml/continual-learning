@@ -55,7 +55,7 @@ def get_torch_loader(  # pylint: disable=C0330
         transfs.append(transforms.ToTensor())
 
     if normalize:
-        mean, std = MEAN_STD[dataset_name][in_size]
+        mean, std = MEAN_STD[dataset_name][tuple(in_size)]
         transfs.append(transforms.Normalize((mean,), (std,)))
 
     dataset = getattr(datasets, dataset_name)(
@@ -77,6 +77,7 @@ def to_memory(  # pylint: disable=C0330
     allow_mixed_batches: bool = True,
     limit: int = None,
     device=None,
+    classes: List[int] = None,
 ) -> InMemoryDataLoader:
 
     all_data, all_target = [], []
@@ -106,6 +107,7 @@ def to_memory(  # pylint: disable=C0330
         order_by_class=order_by_class,
         shuffle=shuffle,
         shuffle_classes=shuffle_classes,
+        classes=classes,
     )
 
 
@@ -114,6 +116,7 @@ def get_loader(  # pylint: disable=C0330
     train: bool = True,
     in_size: List[int] = None,
     batch_size: int = 1,
+    classes: List[int] = None,
     shuffle: bool = True,
     normalize: bool = True,
     allow_mixed_batches: bool = True,
@@ -141,4 +144,5 @@ def get_loader(  # pylint: disable=C0330
         allow_mixed_batches=allow_mixed_batches,
         limit=limit,
         device=device,
+        classes=classes,
     )
